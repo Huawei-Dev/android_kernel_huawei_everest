@@ -275,18 +275,13 @@ static int ptrace_check_attach(struct task_struct *child, bool ignore_state)
 	return ret;
 }
 
-static bool ptrace_has_cap(const struct cred *cred, struct user_namespace *ns,
-			   unsigned int mode)
+static bool ptrace_has_cap(struct user_namespace *ns, unsigned int mode)
 {
-	int ret;
 	int check_cap = (mode & PTRACE_MODE_PERF_EVENT) ? CAP_PERF_EVENT : CAP_SYS_PTRACE;
 
 	if (mode & PTRACE_MODE_NOAUDIT)
-		ret = security_capable(cred, ns, check_cap, CAP_OPT_NOAUDIT);
-	else
-		ret = security_capable(cred, ns, check_cap, CAP_OPT_NONE);
-
-	return ret == 0;
+		return ns_capable_noaudit(ns, check_cap);
+	return ns_capable(ns, check_cap);
 }
 
 /* Returns 0 on success, -errno on denial. */
@@ -338,7 +333,7 @@ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
 	    gid_eq(caller_gid, tcred->sgid) &&
 	    gid_eq(caller_gid, tcred->gid))
 		goto ok;
-	if (ptrace_has_cap(cred, tcred->user_ns, mode))
+	if (ptrace_has_cap(tcred->user_ns, mode))
 		goto ok;
 	rcu_read_unlock();
 	return -EPERM;
@@ -357,7 +352,7 @@ ok:
 	mm = task->mm;
 	if (mm &&
 	    ((get_dumpable(mm) != SUID_DUMP_USER) &&
-	     !ptrace_has_cap(cred, mm->user_ns, mode)))
+	     !ptrace_has_cap(mm->user_ns, mode)))
 	    return -EPERM;
 
 	return security_ptrace_access_check(task, mode);
