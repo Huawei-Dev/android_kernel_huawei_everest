@@ -95,10 +95,6 @@ struct ion_buffer {
 	u32 drm_secure_iova;
 	bool drm_secure_iova_valid;
 #endif
-
-#ifdef CONFIG_HISI_LB
-	unsigned int plc_id;
-#endif
 };
 void ion_buffer_destroy(struct ion_buffer *buffer);
 
