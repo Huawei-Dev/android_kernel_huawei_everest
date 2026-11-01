@@ -3314,30 +3314,101 @@ static int isp_elf_load(void)
 }
 #endif
 
+#define HWISP_FW_PATH \
+    "/vendor/firmware/hw_isp.bin"
+
+static int hwhisp_read_firmware(void *buffer, size_t size)
+{
+    struct file *fp;
+    mm_segment_t old_fs;
+    loff_t pos = 0;
+    ssize_t nread;
+    size_t total = 0;
+    int ret = 0;
+
+    fp = filp_open(HWISP_FW_PATH, O_RDONLY, 0);
+    if (IS_ERR(fp)) {
+        ret = PTR_ERR(fp);
+        pr_err("%s: cannot open %s: %d\n",
+               __func__, HWISP_FW_PATH, ret);
+        return ret;
+    }
+
+    if (i_size_read(file_inode(fp)) != (loff_t)size) {
+        pr_err("%s: invalid firmware size: %lld expected %zu\n",
+               __func__,
+               (long long)i_size_read(file_inode(fp)),
+               size);
+        ret = -EINVAL;
+        goto close_file;
+    }
+
+    old_fs = get_fs();
+    set_fs(KERNEL_DS);
+
+    while (total < size) {
+        nread = vfs_read(fp,
+                         (char __user *)((char *)buffer + total),
+                         size - total,
+                         &pos);
+
+        if (nread <= 0) {
+            ret = (nread < 0) ? (int)nread : -EIO;
+            break;
+        }
+
+        total += nread;
+    }
+
+    set_fs(old_fs);
+
+    if (ret == 0)
+        pr_info("%s: ISP loaded: %zu bytes\n",
+                __func__, total);
+
+close_file:
+    filp_close(fp, NULL);
+    return ret;
+}
+
 static int isp_bin_load(void *data)
 {
 #define PART_ISPFW_SIZE 0x00E00000
-	int ret = -1;
-	struct rproc_boot_device *rproc_dev = &rproc_boot_dev;
-	unsigned int fw_size = (ISP_FW_SIZE>PART_ISPFW_SIZE)?ISP_FW_SIZE:PART_ISPFW_SIZE;
 
-	RPROC_INFO("+\n");
-	rproc_dev->isp_bin_vaddr = vmalloc(fw_size);
-	if (rproc_dev->isp_bin_vaddr == NULL) {
-		RPROC_ERR("Failed : vmalloc.%pK\n", rproc_dev->isp_bin_vaddr);
-		return -ENOMEM;
-	}
+    int ret;
+    struct rproc_boot_device *rproc_dev = &rproc_boot_dev;
+    unsigned int fw_size =
+        (ISP_FW_SIZE > PART_ISPFW_SIZE) ?
+        ISP_FW_SIZE : PART_ISPFW_SIZE;
 
-	if ((ret = hisp_bsp_read_bin("isp_firmware", 0, PART_ISPFW_SIZE, rproc_dev->isp_bin_vaddr)) < 0) {
-		vfree(rproc_dev->isp_bin_vaddr);
-		rproc_dev->isp_bin_vaddr = NULL;
-		RPROC_ERR("Failed : hisp_bsp_read_bin.%d\n", ret);
-		return ret;
-	}
-	rproc_dev->isp_bin_state = 1;
-	RPROC_INFO("-\n");
+    RPROC_INFO("+\n");
 
-	return 0;
+    rproc_dev->isp_bin_vaddr = vmalloc(fw_size);
+    if (rproc_dev->isp_bin_vaddr == NULL) {
+        RPROC_ERR("Failed : vmalloc\n");
+        return -ENOMEM;
+    }
+
+    ret = hwhisp_read_firmware(
+        rproc_dev->isp_bin_vaddr,
+        PART_ISPFW_SIZE
+    );
+
+    if (ret < 0) {
+        vfree(rproc_dev->isp_bin_vaddr);
+        rproc_dev->isp_bin_vaddr = NULL;
+
+        RPROC_ERR("Failed to load ISP firmware: %d\n",
+                  ret);
+        return ret;
+    }
+
+    rproc_dev->isp_bin_state = 1;
+
+    RPROC_INFO("ISP firmware ready\n");
+    RPROC_INFO("-\n");
+
+    return 0;
 }
 
 int wakeup_ispbin_kthread(void)
