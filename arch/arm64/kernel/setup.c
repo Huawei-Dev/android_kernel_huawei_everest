@@ -259,6 +259,74 @@ static int __init builtin_dtb_copy_chosen_props(void *dst_fdt, void *src_fdt)
 	return 0;
 }
 
+#define EVR_BOOTARGS_MAX 4096
+
+static char evr_bootargs_buf[EVR_BOOTARGS_MAX] __initdata;
+
+static const char *__init evr_find_bootarg(const char *cmdline,
+					  const char *token)
+{
+	const char *p = cmdline;
+	size_t len = strlen(token);
+
+	while ((p = strstr(p, token))) {
+		if ((p == cmdline || p[-1] == ' ') &&
+		    (p[len] == ' ' || p[len] == '\0'))
+			return p;
+		p++;
+	}
+
+	return NULL;
+}
+
+static int __init evr_fix_charger_bootmode(void *fdt)
+{
+	static const char normal[] = "androidboot.mode=normal";
+	static const char charger[] = "androidboot.mode=charger";
+	const char *args, *mode;
+	size_t offset, new_len;
+	int chosen, len, ret;
+
+	chosen = fdt_path_offset(fdt, "/chosen");
+	if (chosen < 0)
+		return chosen;
+
+	args = fdt_getprop(fdt, chosen, "bootargs", &len);
+	if (!args || len < 2)
+		return 0;
+
+	if (strnlen(args, len) != (size_t)(len - 1))
+		return -EINVAL;
+
+	if (!evr_find_bootarg(args,
+			"normal_reset_type=BR_POWERON_CHARGE"))
+		return 0;
+
+	mode = evr_find_bootarg(args, normal);
+	if (!mode)
+		return 0;
+
+	offset = mode - args;
+	new_len = len + sizeof(charger) - sizeof(normal);
+
+	if (new_len > sizeof(evr_bootargs_buf))
+		return -E2BIG;
+
+	memcpy(evr_bootargs_buf, args, offset);
+	memcpy(evr_bootargs_buf + offset, charger,
+	       sizeof(charger) - 1);
+	memcpy(evr_bootargs_buf + offset + sizeof(charger) - 1,
+	       mode + sizeof(normal) - 1,
+	       len - offset - (sizeof(normal) - 1));
+
+	ret = fdt_setprop(fdt, chosen, "bootargs",
+			  evr_bootargs_buf, new_len);
+	if (!ret)
+		pr_info("Everest FDT: BR_POWERON_CHARGE -> androidboot.mode=charger\n");
+
+	return ret;
+}
+
 static void *__init setup_machine_fdt_try_builtin(void *original_fdt)
 {
 	void *builtin_fdt;
@@ -314,6 +382,12 @@ static void *__init setup_machine_fdt_try_builtin(void *original_fdt)
 	ret = huawei_everest_adapt_fdt(evr_runtime_fdt, original_fdt);
 	if (ret) {
 		pr_crit("Everest: runtime FDT adaptation FAILED: %d\n", ret);
+		return NULL;
+	}
+
+	ret = evr_fix_charger_bootmode(evr_runtime_fdt);
+	if (ret) {
+		pr_crit("Everest: charger bootmode fixup failed: %d\n", ret);
 		return NULL;
 	}
 
