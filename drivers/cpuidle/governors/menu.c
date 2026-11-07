@@ -150,7 +150,9 @@ struct menu_device {
 #define SKIP_DEEP_CSTATE_MAX_INTERVAL_US (2000)
 #endif
 
+#ifndef BIT
 #define BIT(nr) (1UL << (nr))
+#endif
 
 /* 60 * 60 > STDDEV_THRESH * INTERVALS = 400 * 8 */
 #define MAX_DEVIATION 60

@@ -17,7 +17,9 @@
  */
 
 /* replicated define because linux/bitops.h cannot be included in assembly */
+#ifndef BIT
 #define BIT(nr)			(1 << (nr))
+#endif
 
 #include <linux/linkage.h>
 #include <asm/assembler.h>
