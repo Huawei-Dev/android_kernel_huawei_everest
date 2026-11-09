@@ -1,5 +1,10 @@
 	.text
 	.file	"hisi-blk-iosched-ufs-mq.c"
+#ifdef CONFIG_MODVERSIONS
+	.section "___kcrctab+blk_mq_tagset_ufs_mq_iosched_enable", "a"
+	.long 0
+	.previous
+#endif
 	.file	1 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/export.h"
 	.file	2 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/block/hisi-blk-iosched-ufs-mq.c"
 	.file	3 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/blkdev.h"

@@ -1,5 +1,28 @@
 	.text
 	.file	"hisi-blk-flush.c"
+#ifdef CONFIG_MODVERSIONS
+	.section "___kcrctab_gpl+blk_power_off_flush", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_mq_tagset_direct_flush_register", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_flush_set_async", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_queue_direct_flush_register", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_queue_flush_reduce_config", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_mq_tagset_flush_reduce_config", "a"
+	.long 0
+	.previous
+	.section "___kcrctab_gpl+blk_flush_async_support", "a"
+	.long 0
+	.previous
+#endif
 	.file	1 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/export.h"
 	.file	2 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/block/hisi-blk-flush.c"
 	.file	3 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/init.h"

@@ -1,5 +1,13 @@
 	.text
 	.file	"hisi-blk-dump.c"
+#ifdef CONFIG_MODVERSIONS
+	.section "___kcrctab+blk_mq_tagset_dump_register", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_queue_dump_register", "a"
+	.long 0
+	.previous
+#endif
 	.file	1 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/export.h"
 	.file	2 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/block/hisi-blk-dump.c"
 	.file	3 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/asm-generic/int-ll64.h"

@@ -1,5 +1,13 @@
 	.text
 	.file	"hisi-blk-latency.c"
+#ifdef CONFIG_MODVERSIONS
+	.section "___kcrctab+blk_mq_tagset_latency_warning_set", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_queue_latency_warning_set", "a"
+	.long 0
+	.previous
+#endif
 	.file	1 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/asm-generic/int-ll64.h"
 	.file	2 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/arch/arm64/include/asm/spinlock_types.h"
 	.file	3 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/spinlock_types.h"

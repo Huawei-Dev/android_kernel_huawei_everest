@@ -1,5 +1,31 @@
 	.text
 	.file	"hisi-blk-busy-idle-notify.c"
+#ifdef CONFIG_MODVERSIONS
+	.section "___kcrctab+blk_busy_idle_event_subscriber", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_queue_busy_idle_event_subscriber", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_lld_busy_idle_event_subscriber", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_busy_idle_event_unsubscriber", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_queue_busy_idle_event_unsubscriber", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_queue_busy_idle_enable", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_mq_tagset_busy_idle_enable", "a"
+	.long 0
+	.previous
+	.section "___kcrctab+blk_mq_tagset_hw_idle_notify_enable", "a"
+	.long 0
+	.previous
+#endif
 	.file	1 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/lockdep.h"
 	.file	2 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/block/hisi-blk-busy-idle-notify.c"
 	.file	3 "/mnt/disk/jenkins/ci/workspace/chipset_Q_patch3/opensource/component_code/vendor/huawei/extra/build/build_script/kirin_kernel_release/kernel/include/linux/export.h"
