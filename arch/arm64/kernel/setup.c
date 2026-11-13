@@ -64,12 +64,6 @@
 #include <asm/xen/hypervisor.h>
 #include <asm/mmu_context.h>
 
-#if defined(CONFIG_ARM64_BUILTIN_APPENDED_DTB_OVERRIDE)
-#include <linux/libfdt.h>
-#include "huawei_everest_fdt_fixup.h"
-#include "huawei_everest_multiboard.h"
-#endif
-
 phys_addr_t __fdt_pointer __initdata;
 
 /*
@@ -183,253 +177,27 @@ static void __init smp_build_mpidr_hash(void)
 		pr_warn("Large number of MPIDR hash buckets detected\n");
 }
 
-#if defined(CONFIG_ARM64_BUILTIN_APPENDED_DTB_OVERRIDE)
-extern char __builtin_custom_dtb_start[];
-extern char __builtin_custom_dtb_end[];
-
-/* Persistent FDT workspace. Never place this buffer in __initdata. */
-static u8 evr_runtime_fdt[EVR_RUNTIME_DTB_BYTES] __aligned(8);
-
-static void *__init find_builtin_custom_dtb(void)
-{
-	void *dtb = __builtin_custom_dtb_start;
-	unsigned long max_len;
-
-	max_len = __builtin_custom_dtb_end - __builtin_custom_dtb_start;
-
-	if (!dtb || max_len < sizeof(struct fdt_header))
-		return NULL;
-
-	if (fdt_check_header(dtb))
-		return NULL;
-
-	if (fdt_totalsize(dtb) > max_len)
-		return NULL;
-
-	return dtb;
-}
-
-static int __init builtin_dtb_copy_chosen_props(void *dst_fdt, void *src_fdt)
-{
-	int src_chosen, dst_chosen;
-	int len;
-	const void *prop;
-	int ret;
-
-	if (!dst_fdt || !src_fdt)
-		return -EINVAL;
-
-	if (fdt_check_header(dst_fdt) || fdt_check_header(src_fdt))
-		return -EINVAL;
-
-	src_chosen = fdt_path_offset(src_fdt, "/chosen");
-	dst_chosen = fdt_path_offset(dst_fdt, "/chosen");
-
-	if (src_chosen < 0 || dst_chosen < 0)
-		return -ENOENT;
-
-	prop = fdt_getprop(src_fdt, src_chosen, "bootargs", &len);
-	if (prop) {
-		ret = fdt_setprop(dst_fdt, dst_chosen, "bootargs", prop, len);
-		if (ret)
-			return ret;
-	}
-
-	prop = fdt_getprop(src_fdt, src_chosen, "linux,initrd-start", &len);
-	if (prop) {
-		ret = fdt_setprop(dst_fdt, dst_chosen, "linux,initrd-start", prop, len);
-		if (ret)
-			return ret;
-	}
-
-	prop = fdt_getprop(src_fdt, src_chosen, "linux,initrd-end", &len);
-	if (prop) {
-		ret = fdt_setprop(dst_fdt, dst_chosen, "linux,initrd-end", prop, len);
-		if (ret)
-			return ret;
-	}
-
-	prop = fdt_getprop(src_fdt, src_chosen, "kaslr-seed", &len);
-	if (prop) {
-		ret = fdt_setprop(dst_fdt, dst_chosen, "kaslr-seed", prop, len);
-		if (ret)
-			return ret;
-	}
-
-	return 0;
-}
-
-#define EVR_BOOTARGS_MAX 4096
-
-static char evr_bootargs_buf[EVR_BOOTARGS_MAX] __initdata;
-
-static const char *__init evr_find_bootarg(const char *cmdline,
-					  const char *token)
-{
-	const char *p = cmdline;
-	size_t len = strlen(token);
-
-	while ((p = strstr(p, token))) {
-		if ((p == cmdline || p[-1] == ' ') &&
-		    (p[len] == ' ' || p[len] == '\0'))
-			return p;
-		p++;
-	}
-
-	return NULL;
-}
-
-static int __init evr_fix_charger_bootmode(void *fdt)
-{
-	static const char normal[] = "androidboot.mode=normal";
-	static const char charger[] = "androidboot.mode=charger";
-	const char *args, *mode;
-	size_t offset, new_len;
-	int chosen, len, ret;
-
-	chosen = fdt_path_offset(fdt, "/chosen");
-	if (chosen < 0)
-		return chosen;
-
-	args = fdt_getprop(fdt, chosen, "bootargs", &len);
-	if (!args || len < 2)
-		return 0;
-
-	if (strnlen(args, len) != (size_t)(len - 1))
-		return -EINVAL;
-
-	if (!evr_find_bootarg(args,
-			"normal_reset_type=BR_POWERON_CHARGE"))
-		return 0;
-
-	mode = evr_find_bootarg(args, normal);
-	if (!mode)
-		return 0;
-
-	offset = mode - args;
-	new_len = len + sizeof(charger) - sizeof(normal);
-
-	if (new_len > sizeof(evr_bootargs_buf))
-		return -E2BIG;
-
-	memcpy(evr_bootargs_buf, args, offset);
-	memcpy(evr_bootargs_buf + offset, charger,
-	       sizeof(charger) - 1);
-	memcpy(evr_bootargs_buf + offset + sizeof(charger) - 1,
-	       mode + sizeof(normal) - 1,
-	       len - offset - (sizeof(normal) - 1));
-
-	ret = fdt_setprop(fdt, chosen, "bootargs",
-			  evr_bootargs_buf, new_len);
-	if (!ret)
-		pr_info("Everest FDT: BR_POWERON_CHARGE -> androidboot.mode=charger\n");
-
-	return ret;
-}
-
-static void *__init setup_machine_fdt_try_builtin(void *original_fdt)
-{
-	void *builtin_fdt;
-	const void *selected = NULL;
-	const void *source_fdt;
-	u32 selected_size = 0;
-	int ret;
-
-	builtin_fdt = find_builtin_custom_dtb();
-	if (!builtin_fdt) {
-		pr_crit("Built-in custom DTB/catalog not found or invalid\n");
-		return NULL;
-	}
-	if (!original_fdt || fdt_check_header(original_fdt)) {
-		pr_crit("Everest: invalid bootloader FDT\n");
-		return NULL;
-	}
-
-	ret = evr_catalog_find(builtin_fdt, original_fdt,
-			       &selected, &selected_size);
-	if (ret < 0) {
-		pr_crit("Everest: DTB catalog selection failed: %d\n", ret);
-		return NULL;
-	}
-	if (ret == 0) {
-		/* The selected FDT resides inside the init-only catalog. */
-		if (!selected || selected_size > sizeof(evr_runtime_fdt) ||
-		    fdt_check_header(selected) ||
-		    fdt_totalsize(selected) != selected_size) {
-			pr_crit("Everest: selected DTB invalid or too large\n");
-			return NULL;
-		}
-		source_fdt = selected;
-	} else {
-		pr_info("Everest: legacy single built-in DTB\n");
-		source_fdt = builtin_fdt;
-	}
-
-	/* Copy directly to the permanent 2 MiB workspace. No extra copy. */
-	ret = fdt_open_into(source_fdt, evr_runtime_fdt,
-			    sizeof(evr_runtime_fdt));
-	if (ret) {
-		pr_crit("Built-in DTB fdt_open_into failed: %d\n", ret);
-		return NULL;
-	}
-
-	ret = builtin_dtb_copy_chosen_props(evr_runtime_fdt, original_fdt);
-	if (ret) {
-		pr_crit("Everest: /chosen copy failed: %d\n", ret);
-		return NULL;
-	}
-
-	ret = huawei_everest_adapt_fdt(evr_runtime_fdt, original_fdt);
-	if (ret) {
-		pr_crit("Everest: runtime FDT adaptation FAILED: %d\n", ret);
-		return NULL;
-	}
-
-	ret = evr_fix_charger_bootmode(evr_runtime_fdt);
-	if (ret) {
-		pr_crit("Everest: charger bootmode fixup failed: %d\n", ret);
-		return NULL;
-	}
-
-	if (!early_init_dt_scan(evr_runtime_fdt)) {
-		pr_warn("Everest: built-in DTB early_init_dt_scan failed\n");
-		return NULL;
-	}
-
-	pr_info("Using built-in custom DTB override\n");
-	return evr_runtime_fdt;
-}
-#endif
-
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
 	int size;
 	void *dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
 	const char *name;
 
-	if (!dt_virt)
-		goto invalid_fdt;
+	if (dt_virt)
+		memblock_reserve(dt_phys, size);
 
-	memblock_reserve(dt_phys, size);
+	if (!dt_virt || !early_init_dt_scan(dt_virt)) {
+		pr_crit("\n"
+			"Error: invalid device tree blob at physical address %pa (virtual address 0x%p)\n"
+			"The dtb must be 8-byte aligned and must not exceed 2 MB in size\n"
+			"\nPlease check your bootloader.",
+			&dt_phys, dt_virt);
 
-#if defined(CONFIG_ARM64_BUILTIN_APPENDED_DTB_OVERRIDE)
-	{
-		void *builtin_fdt;
-
-		if (fdt_check_header(dt_virt))
-			goto invalid_fdt;
-
-		builtin_fdt = setup_machine_fdt_try_builtin(dt_virt);
-		/* Never boot 4.14 with an unadapted EMUI 9.1 FDT. */
-		if (!builtin_fdt)
-			goto invalid_fdt;
+		while (true)
+			cpu_relax();
 	}
-#else
-	if (!early_init_dt_scan(dt_virt))
-		goto invalid_fdt;
-#endif
 
-	/* Early fixups are done, map the bootloader FDT as read-only now */
+	/* Early fixups are done, map the FDT as read-only now */
 	fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL_RO);
 
 	name = of_flat_dt_get_machine_name();
@@ -438,17 +206,6 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 
 	pr_info("Machine model: %s\n", name);
 	dump_stack_set_arch_desc("%s (DT)", name);
-	return;
-
-invalid_fdt:
-	pr_crit("\n"
-		"Error: invalid device tree blob at physical address %pa (virtual address 0x%p)\n"
-		"The dtb must be 8-byte aligned and must not exceed 2 MB in size\n"
-		"\nPlease check your bootloader.",
-		&dt_phys, dt_virt);
-
-	while (true)
-		cpu_relax();
 }
 
 static void __init request_standard_resources(void)

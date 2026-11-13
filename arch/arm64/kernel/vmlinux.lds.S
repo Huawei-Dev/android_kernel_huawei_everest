@@ -192,12 +192,6 @@ SECTIONS
 		INIT_CALLS
 		CON_INITCALL
 		INIT_RAM_FS
-#ifdef CONFIG_ARM64_BUILTIN_APPENDED_DTB_OVERRIDE
-		/* Init-only catalog: released by free_initmem() after boot. */
-		. = ALIGN(8);
-		KEEP(*(.builtin_custom_dtb))
-		. = ALIGN(8);
-#endif
 		*(.init.rodata.* .init.bss)	/* from the EFI stub */
 	}
 	.exit.data : {
