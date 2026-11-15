@@ -98,7 +98,7 @@ def fdt_identity(blob):
 
 def generate_catalog(output, dtbs, dtc, max_size):
     if len(dtbs) != len(EXPECTED):
-        raise ValueError("expected exactly 15 DTB inputs, received %d" % len(dtbs))
+        raise ValueError("expected exactly %d DTB inputs, received %d" % (len(EXPECTED), len(dtbs)))
     found = {}
     for path in dtbs:
         raw = path.read_bytes()
